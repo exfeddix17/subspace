@@ -1,172 +1,156 @@
 #!/bin/bash
 
-function colors {
-  GREEN="\e[32m"
-  RED="\e[39m"
-  NORMAL="\e[0m"
-}
+sudo apt install curl -y
+curl -s https://raw.githubusercontent.com/exfeddix17/cryptohodl/main/cryptohodl.sh | bash && sleep 2
 
-function logo {
-  curl -s https://raw.githubusercontent.com/exfeddix17/cryptohodl/main/cryptohodl.sh | bash
-}
+echo -e "\e[1m\e[32m1. Updating dependencies... \e[0m" && sleep 1
+sudo apt update
 
-function line_1 {
-  echo -e "${GREEN}-----------------------------------------------------------------------------${NORMAL}"
-}
+echo "=================================================="
 
-function line_2 {
-  echo -e "${RED}##############################################################################${NORMAL}"
-}
+echo -e "\e[1m\e[32m2. Installing wget... \e[0m" && sleep 1
+sudo apt install wget -y
+cd $HOME
 
-function install_tools {
-  sudo apt update && sudo apt install mc wget htop jq git -y
-}
+echo "=================================================="
 
-function install_docker {
-  curl -s https://raw.githubusercontent.com/razumv/helpers/main/tools/install_docker.sh | bash
-}
+echo -e "\e[1m\e[91mNOTE. This step is only for those who used previously our script to run the node!!!"
+echo -e "If you have used a different setup to start node/farmer then terminate this process CTRL+C, stop the node/farmer and wipe the old data before continuing!!! \e[0m"
+echo -e "\e[1m\e[91mOfficial Guide: https://github.com/subspace/subspace/blob/main/docs/farming.md#switching-to-a-new-snapshot \e[0m"
+echo -e "./FARMER_FILE_NAME wipe"
+echo -e "./NODE_FILE_NAME purge-chain --chain testnet \n"
 
-function install_ufw {
-  curl -s https://raw.githubusercontent.com/razumv/helpers/main/tools/install_ufw.sh | bash
-}
+echo -e "\e[1m\e[91m3. If you were running a node previously, and want to switch to a new snapshot we need to cleanup old data. Please confirm (y/n) \e[0m"
+read -p "(y/n)?" response
+if [[ $response =~ ^(yes|y| ) ]] || [[ -z $response ]]; then   
+    sudo systemctl stop subspace-farmer.service
+    sudo systemctl stop subspace-node.service
+    subspace-farmer wipe
+    subspace-node purge-chain -y --chain testnet
+fi
+echo "=================================================="
 
-function read_nodename {
-  echo -e "Enter your node name(random name for telemetry)"
-  line_1
-  read SUBSPACE_NODENAME
-}
+echo -e "\e[1m\e[32m3. Downloading subspace node binary... \e[0m" && sleep 1
+sudo wget https://github.com/subspace/subspace/releases/download/snapshot-2022-mar-09/subspace-node-ubuntu-x86_64-snapshot-2022-mar-09
 
-function read_wallet {
-  echo -e "Enter your polkadot.js extension address"
-  line_1
-  read WALLET_ADDRESS
-}
+echo "=================================================="
 
-# function source_git {
-#   git clone https://github.com/subspace/subspace
-#   cd $HOME/subspace
-#   git fetch
-#   git checkout snapshot-2022-mar-09
-# }
-#
-# function build_image_node {
-#   cd $HOME/subspace
-#   docker build -t subspacelabs/subspace-node:snapshot-2022-mar-09 -f $HOME/subspace/Dockerfile-node .
-# }
-#
-# function build_image_farmer {
-#   cd $HOME/subspace
-#   docker build -t subspacelabs/subspace-farmer:snapshot-2022-mar-09 -f $HOME/subspace/Dockerfile-farmer .
-# }
+echo -e "\e[1m\e[32m4. Downloading subspace farmer binary... \e[0m" && sleep 1
+sudo wget https://github.com/subspace/subspace/releases/download/snapshot-2022-mar-09/subspace-farmer-ubuntu-x86_64-snapshot-2022-mar-09
 
-function eof_docker_compose {
-  mkdir -p $HOME/subspace_docker/
-  sudo tee <<EOF >/dev/null $HOME/subspace_docker/docker-compose.yml
-  version: "3.7"
-  services:
-    node:
-      image: ghcr.io/subspace/node:snapshot-2022-mar-09
-      networks:
-        - default
-        - subspace
-      volumes:
-        - source: subspace-node
-          target: /var/subspace
-          type: volume
-      command: [
-        "--chain", "testnet",
-        "--wasm-execution", "compiled",
-        "--execution", "wasm",
-        "--base-path", "/var/subspace",
-        "--ws-external",
-        "--rpc-methods", "unsafe",
-        "--rpc-cors", "all",
-        "--bootnodes", "/dns/farm-rpc.subspace.network/tcp/30333/p2p/12D3KooWPjMZuSYj35ehced2MTJFf95upwpHKgKUrFRfHwohzJXr",
-        "--validator",
-        "--name", "$SUBSPACE_NODENAME",
-        "--telemetry-url", "wss://telemetry.subspace.network/submit 0",
-        "--telemetry-url", "wss://telemetry.postcapitalist.io/submit 0"
-      ]
-    farmer:
-      image: ghcr.io/subspace/farmer:snapshot-2022-mar-09
-      networks:
-        - default
-      volumes:
-        - source: subspace-farmer
-          target: /var/subspace
-          type: volume
-      restart: always
-      command: [
-        "farm",
-        "--node-rpc-url", "ws://node:9944",
-        "--reward-address", "$WALLET_ADDRESS"
-      ]
+echo "=================================================="
 
-  networks:
-    subspace:
-      name: subspace
+echo -e "\e[1m\e[32m5. Moving node to /usr/local/bin/subspace-node ... \e[0m" && sleep 1
+sudo mv subspace-node-ubuntu-x86_64-snapshot-2022-mar-09 /usr/local/bin/subspace-node
 
-  volumes:
-    subspace-node:
-    subspace-farmer:
-EOF
-}
+echo "=================================================="
 
-function docker_compose_up {
-  docker-compose -f $HOME/subspace_docker/docker-compose.yml up -d
-}
+echo -e "\e[1m\e[32m6. Moving farmer to /usr/local/bin/subspace-farmer ... \e[0m" && sleep 1
+sudo mv subspace-farmer-ubuntu-x86_64-snapshot-2022-mar-09 /usr/local/bin/subspace-farmer
 
-function echo_info {
-  echo -e "${GREEN}Для остановки ноды и фармера subspace: ${NORMAL}"
-  echo -e "${RED}   docker-compose -f $HOME/subspace_docker/docker-compose.yml down \n ${NORMAL}"
-  echo -e "${GREEN}Для запуска ноды и фармера subspace: ${NORMAL}"
-  echo -e "${RED}   docker-compose -f $HOME/subspace_docker/docker-compose.yml up -d \n ${NORMAL}"
-  echo -e "${GREEN}Для перезагрузки ноды subspace: ${NORMAL}"
-  echo -e "${RED}   docker-compose -f $HOME/subspace_docker/docker-compose.yml restart node \n ${NORMAL}"
-  echo -e "${GREEN}Для перезагрузки фармера subspace: ${NORMAL}"
-  echo -e "${RED}   docker-compose -f $HOME/subspace_docker/docker-compose.yml restart farmer \n ${NORMAL}"
-  echo -e "${GREEN}Для проверки логов ноды выполняем команду: ${NORMAL}"
-  echo -e "${RED}   docker-compose -f $HOME/subspace_docker/docker-compose.yml logs -f --tail=100 node \n ${NORMAL}"
-  echo -e "${GREEN}Для проверки логов фармера выполняем команду: ${NORMAL}"
-  echo -e "${RED}   docker-compose -f $HOME/subspace_docker/docker-compose.yml logs -f --tail=100 farmer \n ${NORMAL}"
-}
+echo "=================================================="
 
-function delete_old {
-  docker-compose -f $HOME/subspace_docker/docker-compose.yml down &>/dev/null
-  docker volume rm subspace_docker_subspace-farmer subspace_docker_subspace-node &>/dev/null
-}
+echo -e "\e[1m\e[32m7. Giving permissions to subspace-farmer & subspace-node ... \e[0m" && sleep 1
+sudo chmod +x /usr/local/bin/subspace*
 
-colors
-line_1
-logo
-line_2
-read_nodename
-line_2
-read_wallet
-line_2
-echo -e "Установка tools, ufw, docker"
-line_1
-install_tools
-install_ufw
-install_docker
-delete_old
-line_1
-# echo -e "Скачиваем репозиторий"
-# source_git
-# line_1
-# echo -e "Билдим образ ноды"
-# build_image_node
-# line_1
-# echo -e "Билдим образ фармера"
-# build_image_farmer
-# line_1
-echo -e "Создаем docker-compose файл"
-line_1
-eof_docker_compose
-line_1
-echo -e "Запускаем docker контейнеры для node and farmer Subspace"
-line_1
-docker_compose_up
-line_2
-echo_info
-line_2
+echo "=================================================="
+
+echo -e "\e[1m\e[32m8. Enter Polkadot JS address to receive rewards \e[0m"
+read -p "Address: " ADDRESS
+
+echo "=================================================="
+
+echo -e "\e[1m\e[32m9. Enter Subspace Node name \e[0m"
+read -p "Node Name : " NODE_NAME
+
+echo "=================================================="
+
+echo -e "\e[1m\e[92m Node Name: \e[0m" $NODE_NAME
+
+echo -e "\e[1m\e[92m Address:  \e[0m" $ADDRESS
+
+echo -e "\e[1m\e[91m    11.1 Continue the process (y/n) \e[0m"
+read -p "(y/n)?" response
+if [[ $response =~ ^(yes|y| ) ]] || [[ -z $response ]]; then
+
+    echo "=================================================="
+
+    echo -e "\e[1m\e[32m12. Creating service for Subspace Node \e[0m"
+
+    echo "[Unit]
+Description=Subspace Node
+
+[Service]
+User=$USER
+ExecStart=subspace-node --chain testnet --wasm-execution compiled --execution wasm --bootnodes '/dns/farm-rpc.subspace.network/tcp/30333/p2p/12D3KooWPjMZuSYj35ehced2MTJFf95upwpHKgKUrFRfHwohzJXr' --rpc-cors all --rpc-methods unsafe --ws-external --validator --telemetry-url 'wss://telemetry.polkadot.io/submit/ 1' --telemetry-url 'wss://telemetry.subspace.network/submit 1' --name '$NODE_NAME'
+Restart=always
+RestartSec=10
+LimitNOFILE=10000
+
+[Install]
+WantedBy=multi-user.target
+    " > $HOME/subspace-node.service
+
+    sudo mv $HOME/subspace-node.service /etc/systemd/system
+
+    echo "=================================================="
+
+    echo -e "\e[1m\e[32m13. Creating service for Subspace Farmer \e[0m"
+
+    echo "[Unit]
+Description=Subspace Farmer
+
+[Service]
+User=$USER
+ExecStart=subspace-farmer farm --reward-address $ADDRESS
+Restart=always
+RestartSec=10
+LimitNOFILE=10000
+
+[Install]
+WantedBy=multi-user.target
+    " > $HOME/subspace-farmer.service
+
+    sudo mv $HOME/subspace-farmer.service /etc/systemd/system
+
+    echo "=================================================="
+
+    # Enabling services
+    sudo systemctl daemon-reload
+    sudo systemctl enable subspace-farmer.service
+    sudo systemctl enable subspace-node.service
+
+    # Starting services
+    sudo systemctl restart subspace-node.service
+    sudo systemctl restart subspace-farmer.service
+
+    echo "=================================================="
+
+    echo -e "\e[1m\e[32mNode Started \e[0m"
+    echo -e "\e[1m\e[32mFarmer Started \e[0m"
+
+    echo "=================================================="
+
+    echo -e "\e[1m\e[32mTo stop the Subspace Node: \e[0m" 
+    echo -e "\e[1m\e[39m    systemctl stop subspace-node.service \n \e[0m" 
+
+    echo -e "\e[1m\e[32mTo start the Subspace Node: \e[0m" 
+    echo -e "\e[1m\e[39m    systemctl start subspace-node.service \n \e[0m" 
+
+    echo -e "\e[1m\e[32mTo check the Subspace Node Logs: \e[0m" 
+    echo -e "\e[1m\e[39m    journalctl -u subspace-node.service -f \n \e[0m" 
+
+    echo -e "\e[1m\e[32mTo stop the Subspace Farmer: \e[0m" 
+    echo -e "\e[1m\e[39m    systemctl stop subspace-farmer.service \n \e[0m" 
+
+    echo -e "\e[1m\e[32mTo start the Subspace Farmer: \e[0m" 
+    echo -e "\e[1m\e[39m    systemctl start subspace-farmer.service \n \e[0m" 
+
+    echo -e "\e[1m\e[32mTo check the Subspace Farmer signed block logs: \e[0m" 
+    echo -e "\e[1m\e[39m    journalctl -u subspace-farmer.service -o cat | grep 'Successfully signed block' \n \e[0m" 
+
+    echo -e "\e[1m\e[32mTo check the Subspace Farmer default logs: \e[0m" 
+    echo -e "\e[1m\e[39m    journalctl -u subspace-farmer.service -f \n \e[0m" 
+else
+    echo -e "\e[1m\e[91m    You have terminated the process \e[0m"
+fi
